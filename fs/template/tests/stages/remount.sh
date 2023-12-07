@@ -2,6 +2,8 @@
 
 TEST_CASE="case 5 - remount"
 
+RES2=( 'file0 file1 file2' )
+
 function check_umount () {
     _PARAM=$1
     _TEST_CASE=$2
@@ -16,6 +18,42 @@ function check_umount () {
 
     fail "$_TEST_CASE: $PROJECT_NAME文件系统仍然在挂载点${MNTPOINT}"
     return 1
+}
+
+function create_and_except_remount () {
+    mkdir_and_check "${MNTPOINT}"/dir0
+    mkdir_and_check "${MNTPOINT}"/dir0/dir1
+    mkdir_and_check "${MNTPOINT}"/dir0/dir1/dir2
+    touch_and_check "${MNTPOINT}"/dir0/dir1/dir2/file0
+    touch_and_check "${MNTPOINT}"/dir0/dir1/dir2/file1
+    touch_and_check "${MNTPOINT}"/dir0/dir1/dir2/file2
+}
+
+function create_and_except_bitmap () {
+    touch_and_check "${MNTPOINT}/hello"
+}
+
+function check_ls_remount () {
+    _PARAM=$1
+    _TEST_CASE=$2
+    _RES=(${RES2[0]})
+    OUTPUT=($(ls "$_PARAM"))
+    
+    for res in "${_RES[@]}"; do
+        IS_FIND=0
+        for output in "${OUTPUT[@]}"; do
+            if [[ "${res}" == "${output}" ]]; then
+                IS_FIND=1
+                break
+            fi
+        done
+
+        if (( IS_FIND != 1 )); then
+            fail "$_TEST_CASE: $res没有在remount后的ls的输出结果中找到"
+            return 1
+        fi 
+    done
+    return 0
 }
 
 ERR_OK=0
@@ -52,12 +90,35 @@ clean_ddriver
 
 try_mount_or_fail
 
-touch_and_check "${MNTPOINT}/hello"
+create_and_except_remount
 
 TEST_CASE="case 5.1 - umount ${MNTPOINT}"
-core_tester ls "${MNTPOINT}" check_umount "$TEST_CASE"
+core_tester ls "${MNTPOINT}" check_umount "$TEST_CASE" 1
 
 sleep 1
 
-TEST_CASE="case 5.2 - check bitmap"
-core_tester ls "${MNTPOINT}" check_bm "$TEST_CASE" 15
+try_mount_or_fail
+
+
+TEST_CASE="case 5.2 - remount ${MNTPOINT}"
+core_tester ls "${MNTPOINT}"/dir0/dir1/dir2 check_ls_remount "$TEST_CASE" 3
+
+clean_mount
+clean_ddriver
+
+sleep 1
+
+try_mount_or_fail
+
+create_and_except_bitmap
+
+clean_mount
+
+sleep 1
+
+
+TEST_CASE="case 5.3 - check bitmap"
+core_tester ls "${MNTPOINT}" check_bm "$TEST_CASE" 12
+
+clean_mount
+clean_ddriver
