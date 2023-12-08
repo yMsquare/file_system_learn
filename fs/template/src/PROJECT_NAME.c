@@ -76,7 +76,7 @@ void PROJECT_NAME_destroy(void* p) {
  * 
  * @param path 相对于挂载点的路径
  * @param mode 创建模式（只读？只写？），可忽略
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_mkdir(const char* path, mode_t mode) {
 	/* TODO: 解析路径，创建目录 */
@@ -88,7 +88,7 @@ int PROJECT_NAME_mkdir(const char* path, mode_t mode) {
  * 
  * @param path 相对于挂载点的路径
  * @param PROJECT_NAME_stat 返回状态
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_getattr(const char* path, struct stat * PROJECT_NAME_stat) {
 	/* TODO: 解析路径，获取Inode，填充PROJECT_NAME_stat，可参考/fs/simplefs/sfs.c的sfs_getattr()函数实现 */
@@ -111,7 +111,7 @@ int PROJECT_NAME_getattr(const char* path, struct stat * PROJECT_NAME_stat) {
  * 
  * @param offset 第几个目录项？
  * @param fi 可忽略
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_readdir(const char * path, void * buf, fuse_fill_dir_t filler, off_t offset,
 			    		 struct fuse_file_info * fi) {
@@ -125,7 +125,7 @@ int PROJECT_NAME_readdir(const char * path, void * buf, fuse_fill_dir_t filler, 
  * @param path 相对于挂载点的路径
  * @param mode 创建文件的模式，可忽略
  * @param dev 设备类型，可忽略
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_mknod(const char* path, mode_t mode, dev_t dev) {
 	/* TODO: 解析路径，并创建相应的文件 */
@@ -137,7 +137,7 @@ int PROJECT_NAME_mknod(const char* path, mode_t mode, dev_t dev) {
  * 
  * @param path 相对于挂载点的路径
  * @param tv 实践
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_utimens(const char* path, const struct timespec tv[2]) {
 	(void)path;
@@ -182,7 +182,7 @@ int PROJECT_NAME_read(const char* path, char* buf, size_t size, off_t offset,
  * @brief 删除文件
  * 
  * @param path 相对于挂载点的路径
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_unlink(const char* path) {
 	/* 选做 */
@@ -199,7 +199,7 @@ int PROJECT_NAME_unlink(const char* path) {
  * 即，先删除最深层的文件，再删除目录文件本身
  * 
  * @param path 相对于挂载点的路径
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_rmdir(const char* path) {
 	/* 选做 */
@@ -211,7 +211,7 @@ int PROJECT_NAME_rmdir(const char* path) {
  * 
  * @param from 源文件路径
  * @param to 目标文件路径
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_rename(const char* from, const char* to) {
 	/* 选做 */
@@ -224,7 +224,7 @@ int PROJECT_NAME_rename(const char* from, const char* to) {
  * 
  * @param path 相对于挂载点的路径
  * @param fi 文件信息
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_open(const char* path, struct fuse_file_info* fi) {
 	/* 选做 */
@@ -236,7 +236,7 @@ int PROJECT_NAME_open(const char* path, struct fuse_file_info* fi) {
  * 
  * @param path 相对于挂载点的路径
  * @param fi 文件信息
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_opendir(const char* path, struct fuse_file_info* fi) {
 	/* 选做 */
@@ -248,7 +248,7 @@ int PROJECT_NAME_opendir(const char* path, struct fuse_file_info* fi) {
  * 
  * @param path 相对于挂载点的路径
  * @param offset 改变后文件大小
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_truncate(const char* path, off_t offset) {
 	/* 选做 */
@@ -266,7 +266,7 @@ int PROJECT_NAME_truncate(const char* path, off_t offset) {
  * X_OK: Test for execute permission.
  * F_OK: Test for existence. 
  * 
- * @return int 0成功，否则失败
+ * @return int 0成功，否则返回对应错误号
  */
 int PROJECT_NAME_access(const char* path, int type) {
 	/* 选做: 解析路径，判断是否存在 */
