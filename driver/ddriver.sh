@@ -107,7 +107,7 @@ function install() {
         echo "" >>"$HOME"/.bashrc
         source "$HOME"/.bashrc   
         
-        echo "export PATH=$PWD/bin:$PATH" >>"$HOME"/.bashrc  
+        echo "export PATH=$PWD/bin:"'$PATH' >>"$HOME"/.bashrc  
         source "$HOME"/.bashrc     
         
         echo "export DDRIVER_TYPE='u'" >>"$HOME"/.bashrc
