@@ -95,7 +95,7 @@ int sfs_driver_write(int offset, uint8_t *in_content, int size) {
     return SFS_ERROR_NONE;
 }
 /**
- * @brief 为一个inode分配dentry，采用头插法
+ * @brief 将denry插入到inode中，采用头插法
  * 
  * @param inode 
  * @param dentry 
@@ -115,8 +115,8 @@ int sfs_alloc_dentry(struct sfs_inode* inode, struct sfs_dentry* dentry) {
 /**
  * @brief 将dentry从inode的dentrys中取出
  * 
- * @param inode 
- * @param dentry 
+ * @param inode 一个目录的索引结点
+ * @param dentry 该目录下的一个目录项
  * @return int 
  */
 int sfs_drop_dentry(struct sfs_inode * inode, struct sfs_dentry * dentry) {
@@ -157,7 +157,7 @@ struct sfs_inode* sfs_alloc_inode(struct sfs_dentry * dentry) {
     int bit_cursor  = 0; 
     int ino_cursor  = 0;
     boolean is_find_free_entry = FALSE;
-
+    /* 检查位图是否有空位 */
     for (byte_cursor = 0; byte_cursor < SFS_BLKS_SZ(sfs_super.map_inode_blks); 
          byte_cursor++)
     {
@@ -213,15 +213,15 @@ int sfs_sync_inode(struct sfs_inode * inode) {
     inode_d.ftype       = inode->dentry->ftype;
     inode_d.dir_cnt     = inode->dir_cnt;
     int offset;
-    
+    /* 先写inode本身 */
     if (sfs_driver_write(SFS_INO_OFS(ino), (uint8_t *)&inode_d, 
                      sizeof(struct sfs_inode_d)) != SFS_ERROR_NONE) {
         SFS_DBG("[%s] io error\n", __func__);
         return -SFS_ERROR_IO;
     }
-                                                      /* Cycle 1: 写 INODE */
-                                                      /* Cycle 2: 写 数据 */
-    if (SFS_IS_DIR(inode)) {                          
+
+    /* 再写inode下方的数据 */
+    if (SFS_IS_DIR(inode)) { /* 如果当前inode是目录，那么数据是目录项，且目录项的inode也要写回 */                          
         dentry_cursor = inode->dentrys;
         offset        = SFS_DATA_OFS(ino);
         while (dentry_cursor != NULL)
@@ -243,7 +243,7 @@ int sfs_sync_inode(struct sfs_inode * inode) {
             offset += sizeof(struct sfs_dentry_d);
         }
     }
-    else if (SFS_IS_REG(inode)) {
+    else if (SFS_IS_REG(inode)) { /* 如果当前inode是文件，那么数据是文件内容，直接写即可 */
         if (sfs_driver_write(SFS_DATA_OFS(ino), inode->data, 
                              SFS_BLKS_SZ(SFS_DATA_PER_FILE)) != SFS_ERROR_NONE) {
             SFS_DBG("[%s] io error\n", __func__);
@@ -253,7 +253,7 @@ int sfs_sync_inode(struct sfs_inode * inode) {
     return SFS_ERROR_NONE;
 }
 /**
- * @brief 删除内存中的一个inode， 暂时不释放
+ * @brief 删除内存中的一个inode
  * Case 1: Reg File
  * 
  *                  Inode
@@ -306,6 +306,22 @@ int sfs_drop_inode(struct sfs_inode * inode) {
             dentry_cursor = dentry_cursor->brother;
             free(dentry_to_free);
         }
+
+        for (byte_cursor = 0; byte_cursor < SFS_BLKS_SZ(sfs_super.map_inode_blks); 
+            byte_cursor++)                            /* 调整inodemap */
+        {
+            for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
+                if (ino_cursor == inode->ino) {
+                     sfs_super.map_inode[byte_cursor] &= (uint8_t)(~(0x1 << bit_cursor));
+                     is_find = TRUE;
+                     break;
+                }
+                ino_cursor++;
+            }
+            if (is_find == TRUE) {
+                break;
+            }
+        }
     }
     else if (SFS_IS_REG(inode) || SFS_IS_SYM_LINK(inode)) {
         for (byte_cursor = 0; byte_cursor < SFS_BLKS_SZ(sfs_super.map_inode_blks); 
@@ -337,12 +353,12 @@ int sfs_drop_inode(struct sfs_inode * inode) {
  * @return struct sfs_inode* 
  */
 struct sfs_inode* sfs_read_inode(struct sfs_dentry * dentry, int ino) {
-    printf("~ hello ~\n");
     struct sfs_inode* inode = (struct sfs_inode*)malloc(sizeof(struct sfs_inode));
     struct sfs_inode_d inode_d;
     struct sfs_dentry* sub_dentry;
     struct sfs_dentry_d dentry_d;
     int    dir_cnt = 0, i;
+    /* 从磁盘读索引结点 */
     if (sfs_driver_read(SFS_INO_OFS(ino), (uint8_t *)&inode_d, 
                         sizeof(struct sfs_inode_d)) != SFS_ERROR_NONE) {
         SFS_DBG("[%s] io error\n", __func__);
@@ -354,6 +370,7 @@ struct sfs_inode* sfs_read_inode(struct sfs_dentry * dentry, int ino) {
     memcpy(inode->target_path, inode_d.target_path, SFS_MAX_FILE_NAME);
     inode->dentry = dentry;
     inode->dentrys = NULL;
+    /* 内存中的inode的数据或子目录项部分也需要读出 */
     if (SFS_IS_DIR(inode)) {
         dir_cnt = inode_d.dir_cnt;
         for (i = 0; i < dir_cnt; i++)
@@ -362,7 +379,7 @@ struct sfs_inode* sfs_read_inode(struct sfs_dentry * dentry, int ino) {
                                 (uint8_t *)&dentry_d, 
                                 sizeof(struct sfs_dentry_d)) != SFS_ERROR_NONE) {
                 SFS_DBG("[%s] io error\n", __func__);
-                return NULL;                    
+                return NULL;
             }
             sub_dentry = new_dentry(dentry_d.fname, dentry_d.ftype);
             sub_dentry->parent = inode->dentry;
@@ -401,7 +418,7 @@ struct sfs_dentry* sfs_get_dentry(struct sfs_inode * inode, int dir) {
     return NULL;
 }
 /**
- * @brief 
+ * @brief 查找文件或目录
  * path: /qwe/ad  total_lvl = 2,
  *      1) find /'s inode       lvl = 1
  *      2) find qwe's dentry 
@@ -411,9 +428,19 @@ struct sfs_dentry* sfs_get_dentry(struct sfs_inode * inode, int dir) {
  * path: /qwe     total_lvl = 1,
  *      1) find /'s inode       lvl = 1
  *      2) find qwe's dentry
+ *  
+ * 
+ * 如果能查找到，返回该目录项
+ * 如果查找不到，返回的是上一个有效的路径
+ * 
+ * path: /a/b/c
+ *      1) find /'s inode     lvl = 1
+ *      2) find a's dentry 
+ *      3) find a's inode     lvl = 2
+ *      4) find b's dentry    如果此时找不到了，is_find=FALSE且返回的是a的inode对应的dentry
  * 
  * @param path 
- * @return struct sfs_inode* 
+ * @return struct sfs_dentry* 
  */
 struct sfs_dentry* sfs_lookup(const char * path, boolean* is_find, boolean* is_root) {
     struct sfs_dentry* dentry_cursor = sfs_super.root_dentry;
@@ -451,7 +478,7 @@ struct sfs_dentry* sfs_lookup(const char * path, boolean* is_find, boolean* is_r
             dentry_cursor = inode->dentrys;
             is_hit        = FALSE;
 
-            while (dentry_cursor)
+            while (dentry_cursor)   /* 遍历子目录项 */
             {
                 if (memcmp(dentry_cursor->fname, fname, strlen(fname)) == 0) {
                     is_hit = TRUE;
@@ -520,22 +547,21 @@ int sfs_mount(struct custom_options options){
     ddriver_ioctl(SFS_DRIVER(), IOC_REQ_DEVICE_SIZE,  &sfs_super.sz_disk);
     ddriver_ioctl(SFS_DRIVER(), IOC_REQ_DEVICE_IO_SZ, &sfs_super.sz_io);
     
-    root_dentry = new_dentry("/", SFS_DIR);
+    root_dentry = new_dentry("/", SFS_DIR);     /* 根目录项每次挂载时新建 */
 
     if (sfs_driver_read(SFS_SUPER_OFS, (uint8_t *)(&sfs_super_d), 
                         sizeof(struct sfs_super_d)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }   
                                                       /* 读取super */
-    if (sfs_super_d.magic_num != SFS_MAGIC_NUM) {     /* 幻数无 */
+    if (sfs_super_d.magic_num != SFS_MAGIC_NUM) {     /* 幻数不正确，初始化 */
                                                       /* 估算各部分大小 */
         super_blks = SFS_ROUND_UP(sizeof(struct sfs_super_d), SFS_IO_SZ()) / SFS_IO_SZ();
 
         inode_num  =  SFS_DISK_SZ() / ((SFS_DATA_PER_FILE + SFS_INODE_PER_FILE) * SFS_IO_SZ());
 
-        map_inode_blks = SFS_ROUND_UP((SFS_ROUND_UP(inode_num, UINT32_BITS) / UINT8_BITS), SFS_IO_SZ()) 
+        map_inode_blks = SFS_ROUND_UP(SFS_ROUND_UP(inode_num, UINT32_BITS), SFS_IO_SZ()) 
                          / SFS_IO_SZ();
-        
                                                       /* 布局layout */
         sfs_super.max_ino = (inode_num - super_blks - map_inode_blks); 
         sfs_super_d.map_inode_offset = SFS_SUPER_OFS + SFS_BLKS_SZ(super_blks);
@@ -552,6 +578,10 @@ int sfs_mount(struct custom_options options){
     sfs_super.map_inode_offset = sfs_super_d.map_inode_offset;
     sfs_super.data_offset = sfs_super_d.data_offset;
 
+    sfs_dump_map();
+
+	printf("\n--------------------------------------------------------------------------------\n\n");
+
     if (sfs_driver_read(sfs_super_d.map_inode_offset, (uint8_t *)(sfs_super.map_inode), 
                         SFS_BLKS_SZ(sfs_super_d.map_inode_blks)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
@@ -562,7 +592,7 @@ int sfs_mount(struct custom_options options){
         sfs_sync_inode(root_inode);
     }
     
-    root_inode            = sfs_read_inode(root_dentry, SFS_ROOT_INO);
+    root_inode            = sfs_read_inode(root_dentry, SFS_ROOT_INO);  /* 读取根目录 */
     root_dentry->inode    = root_inode;
     sfs_super.root_dentry = root_dentry;
     sfs_super.is_mounted  = TRUE;
