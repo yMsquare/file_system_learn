@@ -206,13 +206,39 @@ function test_end() {
     clean_mount
 }
 
+fg_pid=$$
+
+function handle_timeout() {
+    fail "测试超时"
+    fs_pid=$(pgrep -u $USER $PROJECT_NAME)
+    if [ ! -z "$fs_pid" ]; then
+        for PID in $fs_pid; do
+            # echo "kill $PID"
+            kill -9 $PID
+        done
+    fi
+    fusermount -u $MNTPOINT
+    kill -9 $fg_pid
+    exit 1
+}
+
 # Main
 echo "测试脚本工程根目录: $ROOT_PATH"
 
+max_execution_time=100
+(
+    sleep $max_execution_time
+    handle_timeout
+) &
+timer_pid=$!
+# echo "timer $timer_pid"
+
 function main() {
     init_tester
-    test_start 
+    test_start
     test_end
 }
 
 main
+
+kill $timer_pid 2>/dev/null
