@@ -1,0 +1,16 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-I/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/./include",
+      "-D_FILE_OFFSET_BITS=64",
+      "-c",
+      "-o",
+      "CMakeFiles/newfs.dir/src/newfs.c.o",
+      "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs.c"
+    ],
+    "directory": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs",
+    "file": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs.c",
+    "output": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/CMakeFiles/newfs.dir/src/newfs.c.o"
+  }
+]

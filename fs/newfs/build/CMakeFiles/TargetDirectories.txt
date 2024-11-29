@@ -1,0 +1,3 @@
+/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/build/CMakeFiles/newfs.dir
+/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/build/CMakeFiles/edit_cache.dir
+/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/build/CMakeFiles/rebuild_cache.dir
