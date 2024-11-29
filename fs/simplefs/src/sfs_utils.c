@@ -521,17 +521,17 @@ struct sfs_dentry* sfs_lookup(const char * path, boolean* is_find, boolean* is_r
  * @param options 
  * @return int 
  */
-int sfs_mount(struct custom_options options){
+int sfs_mount(struct custom_options options){   // 参数是 custom_options ,选择 device 和 showhelp
     int                 ret = SFS_ERROR_NONE;
-    int                 driver_fd;
-    struct sfs_super_d  sfs_super_d; 
-    struct sfs_dentry*  root_dentry;
-    struct sfs_inode*   root_inode;
+    int                 driver_fd; //驱动fd
+    struct sfs_super_d  sfs_super_d;  // 磁盘超级快
+    struct sfs_dentry*  root_dentry;  // 根目录dentry
+    struct sfs_inode*   root_inode;   // 根目录的inode
 
-    int                 inode_num;
-    int                 map_inode_blks;
+    int                 inode_num; // inode 总数量
+    int                 map_inode_blks; // inode 位图的块数
     
-    int                 super_blks;
+    int                 super_blks;  // 超级块的位置
     boolean             is_init = FALSE;
 
     sfs_super.is_mounted = FALSE;
@@ -553,24 +553,33 @@ int sfs_mount(struct custom_options options){
                         sizeof(struct sfs_super_d)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }   
-                                                      /* 读取super */
+    
+    // 如果没有初始化                                   /* 读取super */
     if (sfs_super_d.magic_num != SFS_MAGIC_NUM) {     /* 幻数不正确，初始化 */
                                                       /* 估算各部分大小 */
         super_blks = SFS_ROUND_UP(sizeof(struct sfs_super_d), SFS_IO_SZ()) / SFS_IO_SZ();
+        // super_blks 的位置，是一个 super_d 的大小 / IO大小
+        // 实际应该是一个 super_d / logic
 
         inode_num  =  SFS_DISK_SZ() / ((SFS_DATA_PER_FILE + SFS_INODE_PER_FILE) * SFS_IO_SZ());
+        // 磁盘大小 / 单个文件大小  * IO size
 
         map_inode_blks = SFS_ROUND_UP(SFS_ROUND_UP(inode_num, UINT32_BITS), SFS_IO_SZ()) 
                          / SFS_IO_SZ();
+        // inode的个数 / IO size  = 需要多少个块来存放 inode 位图
+        // 实际应该是 disk size
                                                       /* 布局layout */
-        sfs_super.max_ino = (inode_num - super_blks - map_inode_blks); 
-        sfs_super_d.map_inode_offset = SFS_SUPER_OFS + SFS_BLKS_SZ(super_blks);
-        sfs_super_d.data_offset = sfs_super_d.map_inode_offset + SFS_BLKS_SZ(map_inode_blks);
-        sfs_super_d.map_inode_blks  = map_inode_blks;
-        sfs_super_d.sz_usage    = 0;
-        SFS_DBG("inode map blocks: %d\n", map_inode_blks);
-        is_init = TRUE;
+        sfs_super.max_ino = (inode_num - super_blks - map_inode_blks); //最大 inode 数量
+        sfs_super_d.map_inode_offset = SFS_SUPER_OFS + SFS_BLKS_SZ(super_blks); // inode 位图的位置
+        sfs_super_d.data_offset = sfs_super_d.map_inode_offset + SFS_BLKS_SZ(map_inode_blks); // 数据位置,包括inode和实际数据的datablk
+        //  清零索引节点和数据块位图
+        sfs_super_d.map_inode_blks  = map_inode_blks; // inode 位图的数量
+        sfs_super_d.sz_usage    = 0; // 初次挂载，磁盘使用量为0
+        SFS_DBG("inode map blocks: %d\n", map_inode_blks); // debug信息
+        is_init = TRUE; // 已经初始化
     }
+    // 上述信息都是 to-disk 结构，以下为 in-mem 结构
+    // 初始化过了，读取填充磁盘的布局信息、位图等
     sfs_super.sz_usage   = sfs_super_d.sz_usage;      /* 建立 in-memory 结构 */
     
     sfs_super.map_inode = (uint8_t *)malloc(SFS_BLKS_SZ(sfs_super_d.map_inode_blks));
@@ -581,12 +590,12 @@ int sfs_mount(struct custom_options options){
     sfs_dump_map();
 
 	printf("\n--------------------------------------------------------------------------------\n\n");
-
+    // 创建 空 的根目录 inode 和 dentry
     if (sfs_driver_read(sfs_super_d.map_inode_offset, (uint8_t *)(sfs_super.map_inode), 
                         SFS_BLKS_SZ(sfs_super_d.map_inode_blks)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }
-
+    // 如果已经完成了初始化
     if (is_init) {                                    /* 分配根节点 */
         root_inode = sfs_alloc_inode(root_dentry);
         sfs_sync_inode(root_inode);
@@ -594,6 +603,7 @@ int sfs_mount(struct custom_options options){
     
     root_inode            = sfs_read_inode(root_dentry, SFS_ROOT_INO);  /* 读取根目录 */
     root_dentry->inode    = root_inode;
+    // 将 super 块中的 root_dentry 设置为函数里定义的 dentry
     sfs_super.root_dentry = root_dentry;
     sfs_super.is_mounted  = TRUE;
 

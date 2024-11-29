@@ -87,7 +87,7 @@ struct sfs_inode
     int                dir_cnt;
     struct sfs_dentry* dentry;                        /* 指向该inode的dentry */
     struct sfs_dentry* dentrys;                       /* 所有目录项 */
-    uint8_t*           data;           
+    uint8_t*           data;
 };  
 
 struct sfs_dentry
@@ -103,11 +103,11 @@ struct sfs_dentry
 struct sfs_super
 {
     int                driver_fd;
-    
+   
     int                sz_io;
     int                sz_disk;
     int                sz_usage;
-    
+     
     int                max_ino;
     uint8_t*           map_inode;
     int                map_inode_blks;
