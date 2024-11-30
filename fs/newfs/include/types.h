@@ -16,16 +16,27 @@ typedef uint16_t     flag16;
 #define UINT32_BITS             32
 #define UINT8_BITS              8
 
-#define ERROR_NONE          0
-#define ERROR_ACCESS        EACCES
-#define ERROR_SEEK          ESPIPE     
-#define ERROR_ISDIR         EISDIR
-#define ERROR_NOSPACE       ENOSPC
-#define ERROR_EXISTS        EEXIST
-#define ERROR_NOTFOUND      ENOENT
-#define ERROR_UNSUPPORTED   ENXIO
-#define ERROR_IO            EIO     /* Error Input/Output */
-#define ERROR_INVAL         EINVAL  /* Invalid Args */
+#define NFS_ERROR_NONE          0
+#define NFS_ERROR_ACCESS        EACCES
+#define NFS_ERROR_SEEK          ESPIPE     
+#define NFS_ERROR_ISDIR         EISDIR
+#define NFS_ERROR_NOSPACE       ENOSPC
+#define NFS_ERROR_EXISTS        EEXIST
+#define NFS_ERROR_NOTFOUND      ENOENT
+#define NFS_ERROR_UNSUPPORTED   ENXIO
+#define NFS_ERROR_IO            EIO     /* Error Input/Output */
+#define NFS_ERROR_INVAL         EINVAL  /* Invalid Args */
+
+#define NFS_MAX_FILE_NAME       128
+#define NFS_INODE_PER_FILE      1
+#define NFS_DATA_PER_FILE       16
+#define NFS_DEFAULT_PERM        0777
+
+#define SFS_IOC_MAGIC           'S'
+#define SFS_IOC_SEEK            _IO(SFS_IOC_MAGIC, 0)
+
+#define SFS_FLAG_BUF_DIRTY      0x1
+#define SFS_FLAG_BUF_OCCUPY     0x2
 /******************************************************************************
 * SECTION: Macro Function
 *******************************************************************************/
@@ -39,15 +50,17 @@ typedef uint16_t     flag16;
 #define BLKS_SZ(blks)               ((blks) * IO_SZ()*2) // logic block size 
 // #define SFS_ASSIGN_FNAME(psfs_dentry, _fname)\ 
                                         // memcpy(psfs_dentry->fname, _fname, strlen(_fname))
-#define INO_OFS(ino)                (super.sz_io * 2 + BLKS_SZ(super.map_inode_blks) + BLKS_SZ(super.map_data_blks)\
-                                    + ino*super.sz_io*2)
+#define INO_OFS(ino)                (super.data_offset + ino * super.sz_io * 2)
  
 #define DATA_OFS(ino)               (INO_OFS(ino) + BLKS_SZ(INODE_PER_FILE))
 
 #define IS_DIR(pinode)              (pinode->dentry->file_type == NFS_DIR)
 #define IS_REG(pinode)              (pinode->dentry->file_type == NFS_REG_FILE)
 // #define IS_SYM_LINK(pinode)         (pinode->dentry->ftype == SFS_SYM_LINK)
-
+/******************************************************************************
+* SECTION: macro debug
+*******************************************************************************/
+#define NFS_DBG(fmt, ...) do { printf("NFS_DBG: " fmt, ##__VA_ARGS__); } while(0) 
 
 
 
@@ -116,7 +129,7 @@ struct newfs_dentry {
 
     struct newfs_dentry* parent;
     struct newfs_dentry* brother;
-    struct newfs_dentry* child;
+    // struct newfs_dentry* child;
 
 };
 
@@ -124,39 +137,40 @@ struct newfs_dentry {
 // in-disk
 struct newfs_dentry_d{
     char    name[MAX_NAME_LEN];
-    int     ino;    // inode 索引
+    int     ino;    // inode 索引,
     NFS_FILE_TYPE   file_type; 
 };
 
 struct newfs_inode_d{
-   uint      ino;
-   uint      size;
+   uint32_t      ino;
+   uint32_t      size;
     // file infos
-    int      file_size;
-    int      link;  //
+    uint32_t      file_size;
+    uint32_t     link;  //
     NFS_FILE_TYPE file_type;
 
     // pointer to data block
-    int      block_pointer[6];
+    uint32_t      block_pointer[6];
 
     // other infos
-    int      dir_dentry_cnt;    // 
+    uint32_t      dir_dentry_cnt;    // 
 };
 
 struct newfs_super_d{
-    uint     magic;
-    uint     sz_usage;
-
-    uint      fd;
-    uint      logic_blk_size;//逻辑块大小
-    uint      root_dentry_inode;//根目录索引
+    uint32_t     magic;
+    uint32_t     sz_usage;
+    // uint32_t      fd;
     // 分区布局信息
-    uint      max_inode;
-    uint      map_inode_blks;
-    uint      map_inode_offset; // inode 位图 offset
-    uint      data_offset; // 数据 offset , 也就是位图之后的    
-    uint      map_data_blks;
-    uint      map_data_offset; // 数据位图offset
+    uint32_t      data_offset; // 数据 offset , 也就是位图之后的    
+    uint32_t      max_inode;
+
+    uint32_t      map_inode_blks;
+    uint32_t      map_inode_offset; // inode 位图 offset
+    uint32_t      map_data_blks;
+    uint32_t      map_data_offset; // 数据位图offset
+
+    uint32_t      root_dentry_inode;//根目录索引
+    
 };
 
 static inline struct newfs_dentry* new_dentry(char * fname, NFS_FILE_TYPE ftype) {
@@ -168,7 +182,7 @@ static inline struct newfs_dentry* new_dentry(char * fname, NFS_FILE_TYPE ftype)
     dentry->inode   = NULL;
     dentry->parent  = NULL;
     dentry->brother = NULL;
-    dentry->child   = NULL;
+    // dentry->child   = NULL;
 }
 
 #endif /* _TYPES_H_ */

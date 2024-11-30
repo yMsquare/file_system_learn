@@ -14,7 +14,7 @@
 #include "string.h"
 #include "stdlib.h"
 
-#define NEWFS_MAGIC           8686 
+#define NEWFS_MAGIC           0x8686 
 #define NEWFS_DEFAULT_PERM    0777   /* 全权限打开 */
 #define MAX_FILE_NAME			128
 #define INODE_PER_FILE			1
@@ -65,4 +65,5 @@ struct newfs_dentry* lookup(const char * path, boolean* is_find, boolean * is_ro
 struct newfs_inode* read_inode(struct newfs_dentry * dentry, int ino);
 char* get_fname(const char * path);
 struct newfs_dentry* get_dentry(struct newfs_inode * inode, int dir);
+void dump_map();
 #endif  /* _newfs_H_ */

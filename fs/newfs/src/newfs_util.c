@@ -2,6 +2,7 @@
 #include "ddriver.h"
 #include "types.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
@@ -54,10 +55,11 @@ struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
     if (is_find_free_entry) {
       break;
     }
+  }
     if (!is_find_free_entry || ino_cursor == super.max_ino) {
       printf("allocate inode failed ");
+      return -NFS_ERROR_NOSPACE;
     }
-  }
   inode = (struct newfs_inode *)malloc(sizeof(struct newfs_inode));
   inode->ino = ino_cursor;
   inode->file_size = 0;
@@ -77,49 +79,6 @@ struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
   return inode;
 }
 
-// 分配 inode
-// struct newfs_inode* allocate_data(struct newfs_dentry * dentry){
-//   struct newfs_inode* inode ;
-//   int byte_cursor = 0;
-//   int bit_cursor = 0;
-//   int datano_cursor = 0;
-//   boolean is_find_free_entry = FALSE;
-//   // 检查位图是否有空位
-//   for (byte_cursor = 0; byte_cursor < super.sz_io * 2; byte_cursor++) {
-//     for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
-//       if ((super.map_data[byte_cursor] & (0x1 << bit_cursor)) == 0) {
-//         super.map_data[byte_cursor] |= (0x1 << bit_cursor);
-//         is_find_free_entry = TRUE;
-//         break;
-//       }
-//       datano_cursor++;
-//     }
-//     if (is_find_free_entry) {
-//       break;
-//     }
-//     if (!is_find_free_entry || datano_cursor == super.max_data) {
-//       printf("allocate data blk failed ");
-//     }
-//   }
-//   inode = (struct newfs_inode *)malloc(sizeof(struct newfs_inode));
-//   inode->ino = ino_cursor;
-//   inode->file_size = 0;
-
-//   dentry->ino = inode->ino;
-//   dentry->inode = inode;
-
-//   inode->dentry = dentry;
-
-//   inode->dir_dentry_cnt = 0;
-//   inode->dentries = NULL;
-
-//   if(inode->file_type == NFS_REG_FILE){
-//     inode->data_block_pointer = (uint8_t *)
-//     malloc(DATA_PER_FILE*super.sz_io*2);
-//   }
-//   return inode;
-// }
-
 int sync_inode(struct newfs_inode *inode) {
   struct newfs_inode_d inode_d;
   struct newfs_dentry *dentry_cursor;
@@ -132,21 +91,24 @@ int sync_inode(struct newfs_inode *inode) {
   inode_d.dir_dentry_cnt = inode->dir_dentry_cnt;
   int offset;
   // inode
+  NFS_DBG("\n----sync:ino: %d, offset:%d \n", ino, INO_OFS(ino));
   if (newfs_driver_write(INO_OFS(ino), (uint8_t *)&inode_d,
                          sizeof(struct newfs_inode_d)) != 0) {
-    return -1; // todo 错误号
+     NFS_DBG("[%s] io error\n", __func__);
+     return -NFS_ERROR_IO;
   }
   // data
-  if (inode->file_type == NFS_DIR) { // 目录
+  if (inode->dentry->file_type == NFS_DIR) { // 目录
     dentry_cursor = inode->dentries;
-    offset = *inode->data_block_pointer; // ?
+    offset = ino*LOGIC_SZ()  + super.data_offset; 
     while (dentry_cursor != NULL) {
       memcpy(dentry_d.name, dentry_cursor->name, 128);
       dentry_d.file_type = dentry_cursor->file_type;
       dentry_d.ino = dentry_cursor->ino;
       if (newfs_driver_write(offset, (uint8_t *)&dentry_d,
                              sizeof(struct newfs_dentry_d)) != 0) {
-        return -1;
+        NFS_DBG("[%s] io error\n", __func__);
+                return -NFS_ERROR_IO;                     
       }
       if (dentry_cursor->inode != NULL) {
         sync_inode(dentry_cursor->inode);
@@ -155,7 +117,14 @@ int sync_inode(struct newfs_inode *inode) {
       offset += sizeof(struct newfs_dentry_d);
     }
   }
-  return 0;
+  else if (inode->dentry->file_type == NFS_REG_FILE) { /* 如果当前inode是文件，那么数据是文件内容，直接写即可 */
+        if (newfs_driver_write(ino*LOGIC_SZ()+super.data_offset, inode->data_block_pointer, 
+                             inode->file_size) != 0) {
+            NFS_DBG("[%s] io error\n", __func__);
+            return -NFS_ERROR_IO;
+        }
+    }
+  return NFS_ERROR_NONE;
 }
 
 // 创建新的 dentry
@@ -174,20 +143,24 @@ int allocate_dentry(struct newfs_inode *inode, struct newfs_dentry *dentry) {
 void dump_map() {
   int byte_cursor = 0;
   int bit_cursor = 0;
+  NFS_DBG("---dump map: from super.map_inode's offset:%d\n",super.map_inode_offset);
 
   for (byte_cursor = 0; byte_cursor < super.sz_io * 2; byte_cursor += 4) {
     for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
       printf("%d ", (super.map_inode[byte_cursor] & (0x1 << bit_cursor)) >>
                         bit_cursor);
     }
+    printf("\t");
     for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
       printf("%d ", (super.map_inode[byte_cursor + 1] & (0x1 << bit_cursor)) >>
                         bit_cursor);
     }
+    printf("\t");
     for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
       printf("%d ", (super.map_inode[byte_cursor + 2] & (0x1 << bit_cursor)) >>
                         bit_cursor);
     }
+    printf("\t");
     for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
       printf("%d ", (super.map_inode[byte_cursor + 3] & (0x1 << bit_cursor)) >>
                         bit_cursor);
@@ -205,6 +178,7 @@ void dump_map() {
  * @return int
  */
 int newfs_driver_read(int offset, uint8_t *out_content, int size) {
+  NFS_DBG("\n -- driver reading offset: %d\n", offset);
   int offset_aligned = ROUND_DOWN(offset, IO_SZ()); // io
   int bias = offset - offset_aligned;
   int size_aligned = ROUND_UP((size + bias), IO_SZ());
@@ -300,7 +274,7 @@ struct newfs_dentry *lookup(const char *path, boolean *is_find,
   *is_root = FALSE;
   strcpy(path_cpy, path);
   // debug
-  printf("looking up path: %s\n", path);
+  printf("-looking up path: %s \n", path);
   fflush(stdout);
 
   if (total_lvl == 0) {
@@ -308,27 +282,40 @@ struct newfs_dentry *lookup(const char *path, boolean *is_find,
     *is_root = TRUE;
     dentry_ret = super.root_dentry;
   }
+
   fname = strtok(path_cpy, "/");
-  printf("fname : %s\n", fname);
+  printf("--fname : %s\n", fname);
   fflush(stdout);
+
   while (fname) {
     lvl++;
     if (dentry_cursor->inode == NULL) {
+      printf("---cursor inode null, reading...\n");
+      fflush(stdout);
       read_inode(dentry_cursor, dentry_cursor->ino);
     }
+    
     inode = dentry_cursor->inode;
 
     if (inode->dentry->file_type == NFS_REG_FILE && lvl < total_lvl) {
-      printf("not a dir");
+      printf("---inode is file\n");
+            fflush(stdout);
       dentry_ret = inode->dentry;
       break;
     }
     if (inode->dentry->file_type == NFS_DIR) {
+      printf("---inode is dir\n");
+      fflush(stdout);
       dentry_cursor = inode->dentries; // 所有目录项
       is_hit = FALSE;
 
        while (dentry_cursor) {
+
         if (memcmp(dentry_cursor->name, fname, strlen(fname)) == 0) {
+
+          printf("----into: DIR : s1:%s,s2:%s\n",dentry_cursor->name,fname);
+          fflush(stdout); 
+
           is_hit = TRUE;
           break;
         }
@@ -336,11 +323,15 @@ struct newfs_dentry *lookup(const char *path, boolean *is_find,
       }
       if (!is_hit) {
         *is_find = FALSE;
-        printf("not found ");
+        printf("----dentriy not found \n");
+        fflush(stdout);
         dentry_ret = inode->dentry;
         break;
       }
       if (is_hit && lvl == total_lvl) {
+        printf("----dentriy hit \n");
+        fflush(stdout);
+
         *is_find = TRUE;
         dentry_ret = dentry_cursor;
         break;
@@ -349,6 +340,8 @@ struct newfs_dentry *lookup(const char *path, boolean *is_find,
     fname = strtok(NULL, "/");
   }
   if (dentry_ret->inode == NULL) {
+    printf("-dentry->inode = NULL \n");
+    fflush(stdout); 
     dentry_ret->inode = read_inode(dentry_ret, dentry_ret->ino);
   }
   return dentry_ret;
@@ -369,10 +362,15 @@ struct newfs_inode *read_inode(struct newfs_dentry *dentry, int ino) {
   struct newfs_dentry_d dentry_d;
   int dir_cnt = 0, i;
   /* 从磁盘读索引结点 */
+
+  NFS_DBG("\n---reading ino : %d, offset : %d\n",ino, INO_OFS(ino));
+
   if (newfs_driver_read(INO_OFS(ino), (uint8_t *)&inode_d,
                         sizeof(struct newfs_inode_d)) != 0) {
+    NFS_DBG("[%s] io error\n", __func__);
     return NULL;
   }
+
   inode->dir_dentry_cnt = 0;
   inode->ino = inode_d.ino;
   inode->file_size = inode_d.size;
@@ -380,7 +378,7 @@ struct newfs_inode *read_inode(struct newfs_dentry *dentry, int ino) {
   inode->dentry = dentry;
   inode->dentries = NULL;
   /* 内存中的inode的数据或子目录项部分也需要读出 */
-  if (inode->file_type == NFS_DIR) {
+  if (inode->dentry->file_type == NFS_DIR) {
     dir_cnt = inode_d.dir_dentry_cnt;
     for (i = 0; i < dir_cnt; i++) {
       if (newfs_driver_read(DATA_OFS(ino) + i * sizeof(struct newfs_dentry_d),
@@ -393,11 +391,11 @@ struct newfs_inode *read_inode(struct newfs_dentry *dentry, int ino) {
       sub_dentry->ino = dentry_d.ino;
       alloc_dentry(inode, sub_dentry);
     }
-  } else if (inode->file_type == NFS_REG_FILE) {
+  } else if (inode->dentry->file_type == NFS_REG_FILE) {
     inode->data_block_pointer = (uint8_t *)malloc(BLKS_SZ(DATA_PER_FILE));
     if (newfs_driver_read(DATA_OFS(ino), (uint8_t *)inode->data_block_pointer,
                           BLKS_SZ(DATA_PER_FILE)) != 0) {
-      // SFS_DBG("[%s] io error\n", __func__);
+      NFS_DBG("[%s] io error\n", __func__);
       return NULL;
     }
   }

@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs.c" "CMakeFiles/newfs.dir/src/newfs.c.o" "gcc" "CMakeFiles/newfs.dir/src/newfs.c.o.d"
+  "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs_util.c" "CMakeFiles/newfs.dir/src/newfs_util.c.o" "gcc" "CMakeFiles/newfs.dir/src/newfs_util.c.o.d"
   )
 
 # Targets to which this target links.

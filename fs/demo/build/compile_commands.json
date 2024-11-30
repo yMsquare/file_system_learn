@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/msquare01/2024_fall/user-land-filesystem/fs/demo/build",
+  "command": "/usr/bin/gcc-12  -I/home/msquare01/2024_fall/user-land-filesystem/fs/demo/./include  -D_FILE_OFFSET_BITS=64 -no-pie -g -Wall --pedantic -g -o CMakeFiles/demo.dir/src/main.c.o -c /home/msquare01/2024_fall/user-land-filesystem/fs/demo/src/main.c",
+  "file": "/home/msquare01/2024_fall/user-land-filesystem/fs/demo/src/main.c"
+}
+]
