@@ -1,4 +1,6 @@
 #include "../include/sfs.h"
+#include "types.h"
+#include <stdio.h>
 
 extern struct sfs_super      sfs_super; 
 extern struct custom_options sfs_options;
@@ -214,6 +216,7 @@ int sfs_sync_inode(struct sfs_inode * inode) {
     inode_d.dir_cnt     = inode->dir_cnt;
     int offset;
     /* 先写inode本身 */
+    SFS_DBG("\n----sync:ino: %d, offset:%d \n", ino,  SFS_INO_OFS(ino));
     if (sfs_driver_write(SFS_INO_OFS(ino), (uint8_t *)&inode_d, 
                      sizeof(struct sfs_inode_d)) != SFS_ERROR_NONE) {
         SFS_DBG("[%s] io error\n", __func__);
@@ -475,11 +478,15 @@ struct sfs_dentry* sfs_lookup(const char * path, boolean* is_find, boolean* is_r
             break;
         }
         if (SFS_IS_DIR(inode)) {
+           SFS_DBG("[%s] is a dir\n", __func__);
+            dentry_ret = inode->dentry;
+
             dentry_cursor = inode->dentrys;
             is_hit        = FALSE;
 
             while (dentry_cursor)   /* 遍历子目录项 */
             {
+                
                 if (memcmp(dentry_cursor->fname, fname, strlen(fname)) == 0) {
                     is_hit = TRUE;
                     break;
@@ -616,6 +623,7 @@ int sfs_mount(struct custom_options options){   // 参数是 custom_options ,选
  * @return int 
  */
 int sfs_umount() {
+    
     struct sfs_super_d  sfs_super_d; 
 
     if (!sfs_super.is_mounted) {
@@ -625,6 +633,8 @@ int sfs_umount() {
     sfs_sync_inode(sfs_super.root_dentry->inode);     /* 从根节点向下刷写节点 */
                                                     
     sfs_super_d.magic_num           = SFS_MAGIC_NUM;
+    printf("----magic num : %d", sfs_super_d.magic_num);
+    fflush(stdout);
     sfs_super_d.map_inode_blks      = sfs_super.map_inode_blks;
     sfs_super_d.map_inode_offset    = sfs_super.map_inode_offset;
     sfs_super_d.data_offset         = sfs_super.data_offset;
@@ -639,7 +649,10 @@ int sfs_umount() {
                          SFS_BLKS_SZ(sfs_super_d.map_inode_blks)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }
+    // int num = 0x1111;
 
+    // sfs_driver_write(0,(uint8_t *)&num,sizeof(num));
+   
     free(sfs_super.map_inode);
     ddriver_close(SFS_DRIVER());
 
