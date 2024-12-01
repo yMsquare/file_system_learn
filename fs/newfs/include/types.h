@@ -108,12 +108,19 @@ struct newfs_inode {
     int      file_size;
     int      link;  //
     int      dir_dentry_cnt;    //若文件为目录，下面有几个目录项
-    struct newfs_dentry* dentry; // dentry , 也就是 first_child
-    struct newfs_dentry* dentries;  // 所有 dentry
+    // 如果是这个inode对应的文件是一个目录，这里就是它的数据的目录项的指针？
+    struct newfs_dentry* dentry; // 父 dentry， 从这个dentry可以找到当前的inode
+
+    struct newfs_dentry* dentries;  // 子 dentry， 从当前inode可以找到这些dentries
 
     // pointer to data block
-    uint8_t*      data_block_pointer;
-    //int       data_block_pointer[6];
+    // 如果这个inode对应的是一个文件，那么下面就是他的文件数据块指针。
+    // uint8_t*      data_block_pointer;
+    uint32_t      data_block_no[6];
+
+    uint8_t*   data[6];      //数据内容
+    uint8_t*    data_in_mem; // 
+
 
     NFS_FILE_TYPE file_type;
 
@@ -142,15 +149,15 @@ struct newfs_dentry_d{
 };
 
 struct newfs_inode_d{
-   uint32_t      ino;
    uint32_t      size;
+   uint32_t      ino;
     // file infos
     uint32_t      file_size;
     uint32_t     link;  //
     NFS_FILE_TYPE file_type;
 
-    // pointer to data block
-    uint32_t      block_pointer[6];
+    // number to data block
+    uint32_t      data_block_no[6];
 
     // other infos
     uint32_t      dir_dentry_cnt;    // 

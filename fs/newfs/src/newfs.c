@@ -117,13 +117,13 @@ void* newfs_init(struct fuse_conn_info * conn_info) {
 
 		inode_num =  DISK_SZ() / ((INODE_PER_FILE + DATA_PER_FILE) * LOGIC_SZ()); // 不考虑其他，总共可以用这么多inode来表示整个磁盘
 		// inode_num = 585
-		map_inode_blks =  ROUND_UP((ROUND_UP(inode_num, UINT32_BITS)),LOGIC_SZ())/ LOGIC_SZ(); // 基于上述，最多需要这么多个inode bitmap
+		map_inode_blks = 1;//ROUND_UP((ROUND_UP(inode_num, UINT32_BITS)),LOGIC_SZ())/ LOGIC_SZ(); // 基于上述，最多需要这么多个inode bitmap
 		map_data_blks = 1;// data bitmap ROUND_UP((ROUND_UP(logic_num, UINT32_BITS)),LOGIC_SZ()) / LOGIC_SZ()
 		// map_inode_blks = 1, map_data_blks = 1
-		super.max_ino = (inode_num - map_inode_blks - super_blks);// 考虑完超级块和位图所占的块之后，最多可以有这么多个inode
-		// max_ino = 585 - 1 - 1 = 583
+		super.max_ino = (inode_num - map_inode_blks - super_blks - map_data_blks);// 考虑完超级块和位图所占的块之后，最多可以有这么多个inode
+		// max_ino = 585 - 1 - 1 -1 = 582
 		super.max_data =  logic_num - inode_num - map_inode_blks - map_data_blks - super_blks;
-		// max_data = 4096 - 585 - 1 - 1 - 1 = 3508
+		// max_data = 4096 - 585 - 1 - 1 - 1 = 3507
 
 		// super_d
 		// inode 位图的偏移 // 第一个块为超级块 // 所以 inode 位图的偏移为一个超级块的大小，也就是一个逻辑块的大小。
@@ -154,16 +154,18 @@ void* newfs_init(struct fuse_conn_info * conn_info) {
 		if (newfs_driver_read(super_d.map_inode_offset, (uint8_t*)(super.map_inode), LOGIC_SZ()) != 0 ){
 			NFS_DBG("---- error reading inode map");
 		}
-		
-		// 如果已经初始化过了
+		NFS_DBG("\n--is_init: %d\n", is_init);	
+		// 如果初始化
 		if (is_init){
 			NFS_DBG("\n--- initialized\n");
 			root_inode = allocate_inode(root_dentry);
+			NFS_DBG("--- in initiallize : root inode : %s",root_inode->dentry->name);
 			sync_inode(root_inode);// todo
 
 		}
 
 		root_inode = read_inode(root_dentry,0);
+		NFS_DBG("---without initialize: root inode : %s",root_inode->dentry->name);	
 		root_dentry->inode = root_inode;
 		root_dentry->ino = root_inode->ino;
 
@@ -214,13 +216,13 @@ void newfs_destroy(void* p) {
 
     NFS_DBG("-------magic : %x",super_d.magic);
 
-
+NFS_DBG("\n newfs_driver_write in destroy\n");
 	if(newfs_driver_write(0, (uint8_t *)&super_d, sizeof(struct newfs_super_d))!= 0){
 		NFS_DBG("-------error writing back super_d");
 		return ;
 	}		
-
-	if(newfs_driver_read(super_d.map_inode_offset, (uint8_t *)(super.map_inode), 1024)!=0){
+	NFS_DBG("\n\n ------------ map_inode_offset : %d  ", super.map_inode_offset);
+	if(newfs_driver_write(super.map_inode_offset, (uint8_t *)(super.map_inode), LOGIC_SZ())!=0){
 		NFS_DBG("-------error writing back map_inode");
 		return ;
 	}

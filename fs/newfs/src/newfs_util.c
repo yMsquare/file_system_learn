@@ -17,67 +17,6 @@ extern struct custom_options sfs_options;
   ((value) % (round) == 0 ? value : ((value) / (round) ) * round)
 #define SFS_ROUND_DOWN(value, round)                                           \
   ((value) % (round) == 0 ? (value) : ((value) / (round)) * (round))
-/**
- * @brief 将denry插入到inode中，采用头插法
- *
- * @param inode
- * @param dentry
- * @return int
- */
-int alloc_dentry(struct newfs_inode *inode, struct newfs_dentry *dentry) {
-  if (inode->dentries == NULL) {
-    inode->dentries = dentry;
-  } else {
-    dentry->brother = inode->dentries;
-    inode->dentries = dentry;
-  }
-  inode->dir_dentry_cnt++;
-  return inode->dir_dentry_cnt;
-}
-
-// 分配 inode
-struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
-  struct newfs_inode *inode;
-  int byte_cursor = 0;
-  int bit_cursor = 0;
-  int ino_cursor = 0;
-  boolean is_find_free_entry = FALSE;
-  // 检查位图是否有空位
-  for (byte_cursor = 0; byte_cursor < super.sz_io * 2; byte_cursor++) {
-    for (bit_cursor = 0; bit_cursor < UINT8_BITS; bit_cursor++) {
-      if ((super.map_inode[byte_cursor] & (0x1 << bit_cursor)) == 0) {
-        super.map_inode[byte_cursor] |= (0x1 << bit_cursor);
-        is_find_free_entry = TRUE;
-        break;
-      }
-      ino_cursor++;
-    }
-    if (is_find_free_entry) {
-      break;
-    }
-  }
-    if (!is_find_free_entry || ino_cursor == super.max_ino) {
-      printf("allocate inode failed ");
-      return -NFS_ERROR_NOSPACE;
-    }
-  inode = (struct newfs_inode *)malloc(sizeof(struct newfs_inode));
-  inode->ino = ino_cursor;
-  inode->file_size = 0;
-
-  dentry->ino = inode->ino;
-  dentry->inode = inode;
-
-  inode->dentry = dentry;
-
-  inode->dir_dentry_cnt = 0;
-  inode->dentries = NULL;
-
-  if (inode->dentry->file_type == NFS_REG_FILE) { // ???
-    inode->data_block_pointer =
-        (uint8_t *)malloc(DATA_PER_FILE * super.sz_io * 2);
-  }
-  return inode;
-}
 
 int sync_inode(struct newfs_inode *inode) {
   struct newfs_inode_d inode_d;
@@ -91,7 +30,7 @@ int sync_inode(struct newfs_inode *inode) {
   inode_d.dir_dentry_cnt = inode->dir_dentry_cnt;
   int offset;
   // inode
-  NFS_DBG("\n----sync:ino: %d, offset:%d \n", ino, INO_OFS(ino));
+  NFS_DBG("\n newfs_driver_write in sync: ino:%d, offset:%d \n", ino, INO_OFS(ino));
   if (newfs_driver_write(INO_OFS(ino), (uint8_t *)&inode_d,
                          sizeof(struct newfs_inode_d)) != 0) {
      NFS_DBG("[%s] io error\n", __func__);
@@ -105,6 +44,7 @@ int sync_inode(struct newfs_inode *inode) {
       memcpy(dentry_d.name, dentry_cursor->name, 128);
       dentry_d.file_type = dentry_cursor->file_type;
       dentry_d.ino = dentry_cursor->ino;
+      NFS_DBG("\n newfs_driver_write in sync in dir: ino:%d, offset:%d \n", ino, offset);
       if (newfs_driver_write(offset, (uint8_t *)&dentry_d,
                              sizeof(struct newfs_dentry_d)) != 0) {
         NFS_DBG("[%s] io error\n", __func__);
@@ -118,26 +58,19 @@ int sync_inode(struct newfs_inode *inode) {
     }
   }
   else if (inode->dentry->file_type == NFS_REG_FILE) { /* 如果当前inode是文件，那么数据是文件内容，直接写即可 */
-        if (newfs_driver_write(ino*LOGIC_SZ()+super.data_offset, inode->data_block_pointer, 
-                             inode->file_size) != 0) {
+  for(int i = 0;i< DATA_PER_FILE;i++){
+    int data_no = inode->data_block_no[i];
+    if(data_no > -1){
+      NFS_DBG("\n newfs_driver_write in sync in file: ino:%d, offset:%d \n", ino, super.data_offset + data_no * LOGIC_SZ());
+        if (newfs_driver_write(super.data_offset + data_no * LOGIC_SZ(), inode->data[i], 
+                             inode->file_size) != 0) { // ? filesize 是多大？
             NFS_DBG("[%s] io error\n", __func__);
             return -NFS_ERROR_IO;
         }
     }
-  return NFS_ERROR_NONE;
-}
-
-// 创建新的 dentry
-// 需要为这个新的 dentry 预先申请一个新的父目录，供对应的 dentry_d 写回磁盘用。
-int allocate_dentry(struct newfs_inode *inode, struct newfs_dentry *dentry) {
-  if (inode->dentries == NULL) {
-    inode->dentries = dentry;
-  } else {
-    dentry->brother = inode->dentries;
-    inode->dentries = dentry;
   }
-  inode->dir_dentry_cnt++;
-  return inode->dir_dentry_cnt;
+    }
+  return NFS_ERROR_NONE;
 }
 
 void dump_map() {
@@ -228,7 +161,7 @@ int newfs_driver_write(int offset, uint8_t *in_content, int size) {
     cur += IO_SZ();
     size_aligned -= IO_SZ();
   }
-
+  NFS_DBG("-- driver write: write to offset_aligned: %d, \ncontent: %s, bias: %d \n",offset_aligned,in_content,bias);
   free(temp_content);
   return 0;
 }
@@ -370,13 +303,18 @@ struct newfs_inode *read_inode(struct newfs_dentry *dentry, int ino) {
     NFS_DBG("[%s] io error\n", __func__);
     return NULL;
   }
-
+  // 此时 inode_d 已经在内存里了，包括 data_block_no[6]
   inode->dir_dentry_cnt = 0;
   inode->ino = inode_d.ino;
   inode->file_size = inode_d.size;
   // memcpy(inode->target_path, inode_d.target_path, SFS_MAX_FILE_NAME);
   inode->dentry = dentry;
   inode->dentries = NULL;
+  inode->file_type = inode_d.file_type;
+
+  for(int i = 0 ; i < DATA_PER_FILE; i++){
+  inode->data_block_no[i] = inode_d.data_block_no[i];
+  }
   /* 内存中的inode的数据或子目录项部分也需要读出 */
   if (inode->dentry->file_type == NFS_DIR) {
     dir_cnt = inode_d.dir_dentry_cnt;
@@ -389,14 +327,22 @@ struct newfs_inode *read_inode(struct newfs_dentry *dentry, int ino) {
       sub_dentry = new_dentry(dentry_d.name, dentry_d.file_type);
       sub_dentry->parent = inode->dentry;
       sub_dentry->ino = dentry_d.ino;
-      alloc_dentry(inode, sub_dentry);
+      allocate_dentry(inode, sub_dentry);
     }
   } else if (inode->dentry->file_type == NFS_REG_FILE) {
-    inode->data_block_pointer = (uint8_t *)malloc(BLKS_SZ(DATA_PER_FILE));
-    if (newfs_driver_read(DATA_OFS(ino), (uint8_t *)inode->data_block_pointer,
-                          BLKS_SZ(DATA_PER_FILE)) != 0) {
-      NFS_DBG("[%s] io error\n", __func__);
-      return NULL;
+    // inode->dat = (uint8_t *)malloc(BLKS_SZ(DATA_PER_FILE));
+    // if (newfs_driver_read(DATA_OFS(ino), (uint8_t *)inode->data_block_pointer,
+    //                       BLKS_SZ(DATA_PER_FILE)) != 0) {
+    //   NFS_DBG("[%s] io error\n", __func__);
+    //   return NULL;
+    // }
+    for(int i = 0; i < DATA_PER_FILE;i++){
+      if(inode->data_block_no[i] > -1){
+         inode->data[i] = (uint8_t * )malloc(LOGIC_SZ());
+         if(newfs_driver_read(super.data_offset + inode->data_block_no[i]*LOGIC_SZ(), inode->data[i], LOGIC_SZ())!=NFS_ERROR_NONE){
+          NFS_DBG("[%s] io error\n", __func__);  
+         }
+      }      
     }
   }
   return inode;

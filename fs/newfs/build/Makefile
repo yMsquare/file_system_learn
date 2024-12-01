@@ -153,6 +153,30 @@ src/newfs.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/newfs.dir/build.make CMakeFiles/newfs.dir/src/newfs.c.s
 .PHONY : src/newfs.c.s
 
+src/newfs_allocs.o: src/newfs_allocs.c.o
+.PHONY : src/newfs_allocs.o
+
+# target to build an object file
+src/newfs_allocs.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/newfs.dir/build.make CMakeFiles/newfs.dir/src/newfs_allocs.c.o
+.PHONY : src/newfs_allocs.c.o
+
+src/newfs_allocs.i: src/newfs_allocs.c.i
+.PHONY : src/newfs_allocs.i
+
+# target to preprocess a source file
+src/newfs_allocs.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/newfs.dir/build.make CMakeFiles/newfs.dir/src/newfs_allocs.c.i
+.PHONY : src/newfs_allocs.c.i
+
+src/newfs_allocs.s: src/newfs_allocs.c.s
+.PHONY : src/newfs_allocs.s
+
+# target to generate assembly for a file
+src/newfs_allocs.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/newfs.dir/build.make CMakeFiles/newfs.dir/src/newfs_allocs.c.s
+.PHONY : src/newfs_allocs.c.s
+
 src/newfs_util.o: src/newfs_util.c.o
 .PHONY : src/newfs_util.o
 
@@ -189,6 +213,9 @@ help:
 	@echo "... src/newfs.o"
 	@echo "... src/newfs.i"
 	@echo "... src/newfs.s"
+	@echo "... src/newfs_allocs.o"
+	@echo "... src/newfs_allocs.i"
+	@echo "... src/newfs_allocs.s"
 	@echo "... src/newfs_util.o"
 	@echo "... src/newfs_util.i"
 	@echo "... src/newfs_util.s"

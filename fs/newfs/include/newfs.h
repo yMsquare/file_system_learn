@@ -66,4 +66,5 @@ struct newfs_inode* read_inode(struct newfs_dentry * dentry, int ino);
 char* get_fname(const char * path);
 struct newfs_dentry* get_dentry(struct newfs_inode * inode, int dir);
 void dump_map();
+void allocate_data(struct newfs_inode *inode);
 #endif  /* _newfs_H_ */
