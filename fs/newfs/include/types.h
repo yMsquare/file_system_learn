@@ -8,6 +8,25 @@ typedef int          boolean;
 typedef uint16_t     flag16;
 #include "string.h"
 #include "stdlib.h"
+#define NEWFS_MAGIC           0x8686 
+#define NEWFS_DEFAULT_PERM    0777   /* 全权限打开 */
+#define MAX_FILE_NAME			128
+
+#define MAX_DENTRIES            128
+
+#define INODE_PER_FILE			1
+#define DATA_PER_FILE			6	
+
+
+#define IO_SZ()				(super.sz_io)
+#define LOGIC_SZ()			(super.sz_io * 2)
+#define DISK_SZ()			(super.sz_disk)
+
+
+#define ROUND_UP(value, round)                                                 \
+  ((value) % (round) == 0 ? value : ((value) / (round) + 1 ) * (round))
+#define ROUND_DOWN(value, round)                                               \
+  ((value) % (round) == 0 ? value : ((value) / (round) ) * round)
 /******************************************************************************
 * SECTION: Macro
 *******************************************************************************/
@@ -32,27 +51,17 @@ typedef uint16_t     flag16;
 #define NFS_DATA_PER_FILE       16
 #define NFS_DEFAULT_PERM        0777
 
-#define SFS_IOC_MAGIC           'S'
-#define SFS_IOC_SEEK            _IO(SFS_IOC_MAGIC, 0)
-
-#define SFS_FLAG_BUF_DIRTY      0x1
-#define SFS_FLAG_BUF_OCCUPY     0x2
 /******************************************************************************
 * SECTION: Macro Function
 *******************************************************************************/
-// #define SFS_IO_SZ()                     (sfs_super.sz_io)
-// #define SFS_DISK_SZ()                   (sfs_super.sz_disk)
-// #define SFS_DRIVER()                    (sfs_super.driver_fd)
-
-// #define SFS_ROUND_DOWN(value, round)    ((value) % (round) == 0 ? (value) : ((value) / (round)) * (round))
-// #define SFS_ROUND_UP(value, round)      ((value) % (round) == 0 ? (value) : ((value) / (round) + 1) * (round))
 
 #define BLKS_SZ(blks)               ((blks) * IO_SZ()*2) // logic block size 
-// #define SFS_ASSIGN_FNAME(psfs_dentry, _fname)\ 
+// #define SFS_ASSIGN_FNAME(psfs_dentry, _fname)
                                         // memcpy(psfs_dentry->fname, _fname, strlen(_fname))
-#define INO_OFS(ino)                (super.data_offset + ino * super.sz_io * 2)
+#define INO_OFS(ino)                (super.inode_offset + ino * LOGIC_SZ())
+#define DENTRY_OFS(data_no)              (super.data_offset + data_no* LOGIC_SZ())
  
-#define DATA_OFS(ino)               (INO_OFS(ino) + BLKS_SZ(INODE_PER_FILE))
+#define DATA_OFS(datano)               (super.data_offset + datano * LOGIC_SZ())
 
 #define IS_DIR(pinode)              (pinode->dentry->file_type == NFS_DIR)
 #define IS_REG(pinode)              (pinode->dentry->file_type == NFS_REG_FILE)
@@ -61,8 +70,6 @@ typedef uint16_t     flag16;
 * SECTION: macro debug
 *******************************************************************************/
 #define NFS_DBG(fmt, ...) do { printf("NFS_DBG: " fmt, ##__VA_ARGS__); } while(0) 
-
-
 
 typedef enum newfs_file_type {
     NFS_REG_FILE,
@@ -81,10 +88,10 @@ struct newfs_super {
     struct newfs_inode*      root_dentry_inode;//根目录索引
     // 分区布局信息
     int      max_blks;          // 最大逻辑块数量
-    
-    int      max_ino;           
-    uint8_t*     map_inode;         // inode 位图 指针
-    int      map_inode_blks;    // inode 位图 估算块数
+
+    int      max_ino;
+    uint8_t  *map_inode;         // inode 位图 指针
+    int      map_inode_blks;         // inode 位图 估算块数
     int      map_inode_offset;  // inode 位图 位置
 
     int      max_data;          // 最大可用数据块数
@@ -92,7 +99,8 @@ struct newfs_super {
     int     map_data_blks;    // data 位图 估算块数
     int     map_data_offset;    // data 位图 位置
 
-    int    data_offset; 
+    int    inode_offset;        // inode 索引数据块区域起始位置
+    int    data_offset;         // 数据块区域起始位置 
 
     int     sz_disk;            // 磁盘总大小
     int     sz_io;              // IO 块大小
@@ -114,12 +122,11 @@ struct newfs_inode {
     struct newfs_dentry* dentries;  // 子 dentry， 从当前inode可以找到这些dentries
 
     // pointer to data block
-    // 如果这个inode对应的是一个文件，那么下面就是他的文件数据块指针。
-    // uint8_t*      data_block_pointer;
+    // 如果这个 inode 对应的是一个文件，那么 data 就是他的在内存中的文件数据块指针，data_block_no 是物理存储中的磁盘块号
+    // 如果这个 inode 对应的是一个目录，那么它的文件数据块里面存放的都是它目录下的文件的 dentries
+    uint8_t*   data[6];      //数据内容, 在内存中
     uint32_t      data_block_no[6];
 
-    uint8_t*   data[6];      //数据内容
-    uint8_t*    data_in_mem; // 
 
 
     NFS_FILE_TYPE file_type;
@@ -168,6 +175,7 @@ struct newfs_super_d{
     uint32_t     sz_usage;
     // uint32_t      fd;
     // 分区布局信息
+    uint32_t   inode_offset;        // inode 索引数据块区域起始位置
     uint32_t      data_offset; // 数据 offset , 也就是位图之后的    
     uint32_t      max_inode;
 
@@ -176,7 +184,7 @@ struct newfs_super_d{
     uint32_t      map_data_blks;
     uint32_t      map_data_offset; // 数据位图offset
 
-    uint32_t      root_dentry_inode;//根目录索引
+    // uint32_t      root_dentry_inode;//根目录索引
     
 };
 

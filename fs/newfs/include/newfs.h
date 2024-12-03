@@ -14,22 +14,7 @@
 #include "string.h"
 #include "stdlib.h"
 
-#define NEWFS_MAGIC           0x8686 
-#define NEWFS_DEFAULT_PERM    0777   /* 全权限打开 */
-#define MAX_FILE_NAME			128
-#define INODE_PER_FILE			1
-#define DATA_PER_FILE			6	
 
-
-#define IO_SZ()				(super.sz_io)
-#define LOGIC_SZ()			(super.sz_io * 2)
-#define DISK_SZ()			(super.sz_disk)
-
-
-#define ROUND_UP(value, round)                                                 \
-  ((value) % (round) == 0 ? value : ((value) / (round) + 1 ) * (round))
-#define ROUND_DOWN(value, round)                                               \
-  ((value) % (round) == 0 ? value : ((value) / (round) ) * round)
 /******************************************************************************
 * SECTION: newfs.c
 *******************************************************************************/

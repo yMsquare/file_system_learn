@@ -6,7 +6,17 @@
 },
 {
   "directory": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs",
+  "command": "/usr/bin/cc  -I/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/./include  -D_FILE_OFFSET_BITS=64 -no-pie -o CMakeFiles/newfs.dir/src/newfs_allocs.c.o -c /home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs_allocs.c",
+  "file": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs_allocs.c"
+},
+{
+  "directory": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs",
   "command": "/usr/bin/cc  -I/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/./include  -D_FILE_OFFSET_BITS=64 -no-pie -o CMakeFiles/newfs.dir/src/newfs_util.c.o -c /home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs_util.c",
   "file": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/newfs_util.c"
+},
+{
+  "directory": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs",
+  "command": "/usr/bin/cc  -I/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/./include  -D_FILE_OFFSET_BITS=64 -no-pie -o CMakeFiles/newfs.dir/src/size.c.o -c /home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/size.c",
+  "file": "/home/msquare01/2024_fall/user-land-filesystem/fs/newfs/src/size.c"
 }
 ]

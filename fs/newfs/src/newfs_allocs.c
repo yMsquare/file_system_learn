@@ -50,6 +50,8 @@ struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
   inode = (struct newfs_inode *)malloc(sizeof(struct newfs_inode));
   inode->ino = ino_cursor;
   inode->file_size = 0;
+  inode->file_type = dentry->file_type;  // todo 
+
 
   dentry->ino = inode->ino;
   dentry->inode = inode;
@@ -59,10 +61,19 @@ struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
   inode->dir_dentry_cnt = 0;
   inode->dentries = NULL;
 
-  if (inode->dentry->file_type == NFS_REG_FILE) { // ???
+  for(int j = 0;j<DATA_PER_FILE;j++){
+    inode->data_block_no[j] = -1;
+    inode->data[j] = NULL;
+  }
+  if(inode->dentry->file_type == NFS_DIR){// 申请一个块用来存放dentry
+    allocate_data(inode);
+  }
+
+  if (inode->dentry->file_type == NFS_REG_FILE) {
+    // * 空文件
     // inode->data_block_pointer =
     //     (uint8_t *)malloc(DATA_PER_FILE * super.sz_io * 2);
-    allocate_data(inode);
+    //allocate_data(inode);
   }
   return inode;
 }
