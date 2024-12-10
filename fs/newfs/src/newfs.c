@@ -329,7 +329,9 @@ int newfs_readdir(const char * path, void * buf, fuse_fill_dir_t filler, off_t o
 			    		 struct fuse_file_info * fi) {
     /* TODO: 解析路径，获取目录的Inode，并读取目录项，利用filler填充到buf，可参考/fs/simplefs/sfs.c的sfs_readdir()函数实现 */
 	boolean is_find, is_root;
+	int ls_count = 0;
 	int cur_dir = offset;
+	// int cur_dir = 0;
 	struct newfs_dentry * dentry = lookup(path, &is_find, &is_root);
 	struct newfs_dentry * sub_dentry;
 	struct newfs_inode  * inode;
@@ -337,6 +339,7 @@ int newfs_readdir(const char * path, void * buf, fuse_fill_dir_t filler, off_t o
 		inode = dentry->inode;
 		sub_dentry = get_dentry(inode, cur_dir);
 		if(sub_dentry){
+
 			filler(buf, sub_dentry->name, NULL, ++offset);
 		}
 		return 0;
@@ -507,7 +510,7 @@ int newfs_read(const char* path, char* buf, size_t size, off_t offset,
             return -NFS_ERROR_NOSPACE;
         }
 
-        // 检查是否需要分配新块
+        // 检查是否需要分配新块 //
         if (!inode->data[block_idx]) {
             allocate_data(inode);
         }
@@ -666,7 +669,15 @@ int newfs_access(const char* path, int type) {
 int main(int argc, char **argv)
 {
     int ret;
-	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+	
+	char **argv_ = malloc(sizeof(uintptr_t) * (argc + 2));
+	for (int i = 0; i < argc; i++) {
+		argv_[i] = argv[i];
+	}
+	argv_[argc] = "-f";
+	argv_[argc + 1] = "-d";
+
+	struct fuse_args args = FUSE_ARGS_INIT(argc, argv_);
 
 	newfs_options.device = strdup("/dev/ddriver");
 

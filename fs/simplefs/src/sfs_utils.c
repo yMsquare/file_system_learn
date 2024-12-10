@@ -378,6 +378,7 @@ struct sfs_inode* sfs_read_inode(struct sfs_dentry * dentry, int ino) {
         dir_cnt = inode_d.dir_cnt;
         for (i = 0; i < dir_cnt; i++)
         {
+            // 这里要读的是当前 inode 的 dentry_d，是存放在 inode 指向的 data blk里面的
             if (sfs_driver_read(SFS_DATA_OFS(ino) + i * sizeof(struct sfs_dentry_d), 
                                 (uint8_t *)&dentry_d, 
                                 sizeof(struct sfs_dentry_d)) != SFS_ERROR_NONE) {
@@ -597,12 +598,12 @@ int sfs_mount(struct custom_options options){   // 参数是 custom_options ,选
     sfs_dump_map();
 
 	printf("\n--------------------------------------------------------------------------------\n\n");
-    // 创建 空 的根目录 inode 和 dentry
     if (sfs_driver_read(sfs_super_d.map_inode_offset, (uint8_t *)(sfs_super.map_inode), 
                         SFS_BLKS_SZ(sfs_super_d.map_inode_blks)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }
-    // 如果已经完成了初始化
+    // 创建 空 的根目录 inode 和 dentry
+    // 如果是初始化
     if (is_init) {                                    /* 分配根节点 */
         root_inode = sfs_alloc_inode(root_dentry);
         sfs_sync_inode(root_inode);
@@ -649,8 +650,8 @@ int sfs_umount() {
                          SFS_BLKS_SZ(sfs_super_d.map_inode_blks)) != SFS_ERROR_NONE) {
         return -SFS_ERROR_IO;
     }
+    
     // int num = 0x1111;
-
     // sfs_driver_write(0,(uint8_t *)&num,sizeof(num));
    
     free(sfs_super.map_inode);

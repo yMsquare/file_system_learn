@@ -80,7 +80,7 @@ struct newfs_inode *allocate_inode(struct newfs_dentry *dentry) {
 
 // 为一个 inode 分配数据块 data_block_pointer
 // 对于目录，data_block_pointer 为null
-// 对于文件，data block pointer 为指向数据库的指针
+// 对于文件，data block pointer 为指向数据块的指针
 void allocate_data(struct newfs_inode *inode) {
   int index = 0;
   boolean is_found = FALSE;
